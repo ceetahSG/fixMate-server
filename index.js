@@ -1,7 +1,7 @@
 import express from "express";
 import "dotenv/config";
 import cors from "cors";
-import { MongoClient } from "mongodb";
+import { MongoClient, ObjectId } from "mongodb";
 
 const app = express();
 
@@ -48,6 +48,24 @@ app.post("/services", async (req, res) => {
 
 app.get("/", async (req, res) => {
   res.send("Server is running");
+});
+
+app.patch("/services/:id", async (req, res) => {
+  const id = req.params.id;
+  const filter = { _id: new ObjectId(id) };
+  const updatedService = req.body;
+  const result = await servicesCollection.updateOne(filter, {
+    $set: updatedService,
+  });
+  res.send(result);
+});
+
+app.delete("/delete-services/:id", async (req, res) => {
+  const id = req.params.id;
+  console.log("Deleting service with ID:", id);
+  const filter = { _id: new ObjectId(id) };
+  const result = await servicesCollection.deleteOne(filter);
+  res.send(result);
 });
 
 app.listen(port, () => {
