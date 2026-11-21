@@ -17,7 +17,8 @@ export async function connectToMongoDB() {
     console.log("You successfully connected to MongoDB!");
     return client;
   } catch (err) {
-    console.dir(err);
+    console.error("MongoDB connection failed:", err);
+    throw err;
   }
 }
 
@@ -26,11 +27,19 @@ const db = connectedClient.db("fixMateDb");
 const servicesCollection = db.collection("services");
 const bookingsCollection = db.collection("bookings");
 const paymentsCollection = db.collection("payments");
+const usersCollection = db.collection("users");
 
 app.get("/services", async (req, res) => {
-  const result = await servicesCollection.find(query).toArray();
-  res.send(result);
+  try {
+    const result = await servicesCollection.find({}).toArray();
+    res.send(result);
+  } catch (err) {
+    console.error("Failed to fetch services:", err);
+    res.status(500).send({ message: "Failed to fetch services" });
+  }
 });
+
+
 
 app.get("/services/:email", async (req, res) => {
   const email = req.params.email;
