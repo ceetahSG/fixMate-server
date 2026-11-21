@@ -27,7 +27,7 @@ const db = connectedClient.db("fixMateDb");
 const servicesCollection = db.collection("services");
 const bookingsCollection = db.collection("bookings");
 const paymentsCollection = db.collection("payments");
-const usersCollection = db.collection("users");
+const usersCollection = db.collection("user");
 
 app.get("/services", async (req, res) => {
   try {
@@ -37,6 +37,13 @@ app.get("/services", async (req, res) => {
     console.error("Failed to fetch services:", err);
     res.status(500).send({ message: "Failed to fetch services" });
   }
+});
+
+app.get("/services/:id", async (req, res) => {
+  const id = req.params.id;
+  const query = { _id: new ObjectId(id) };
+  const result = await servicesCollection.findOne(query);
+  res.send(result);
 });
 
 app.get("/users", async (req, res) => {
