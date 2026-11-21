@@ -39,7 +39,25 @@ app.get("/services", async (req, res) => {
   }
 });
 
+app.get("/users", async (req, res) => {
+  try {
+    const result = await usersCollection.find({}).toArray();
+    res.send(result);
+  } catch (err) {
+    console.error("Failed to fetch users:", err);
+    res.status(500).send({ message: "Failed to fetch users" });
+  }
+});
 
+app.patch("/users/:id", async (req, res) => {
+  const id = req.params.id;
+  const filter = { _id: new ObjectId(id) };
+  const updatedUser = req.body;
+  const result = await usersCollection.updateOne(filter, {
+    $set: updatedUser,
+  });
+  res.send(result);
+});
 
 app.get("/services/:email", async (req, res) => {
   const email = req.params.email;
