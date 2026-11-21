@@ -40,10 +40,19 @@ app.get("/services", async (req, res) => {
   res.send(result);
 });
 
-app.get("/services/:id", async (req, res) => {
-  const id = req.params.id;
-  const query = { _id: new ObjectId(id) };
-  const result = await servicesCollection.findOne(query);
+app.get("/services/:value", async (req, res) => {
+  const value = req.params.value;
+
+  if (/^[0-9a-fA-F]{24}$/.test(value)) {
+    const result = await servicesCollection.findOne({
+      _id: new ObjectId(value),
+    });
+    return res.send(result);
+  }
+
+  const result = await servicesCollection
+    .find({ technicianEmail: value })
+    .toArray();
   res.send(result);
 });
 
@@ -64,13 +73,6 @@ app.patch("/users/:id", async (req, res) => {
   const result = await usersCollection.updateOne(filter, {
     $set: updatedUser,
   });
-  res.send(result);
-});
-
-app.get("/services/:email", async (req, res) => {
-  const email = req.params.email;
-  const query = { technicianEmail: email };
-  const result = await servicesCollection.find(query).toArray();
   res.send(result);
 });
 
@@ -110,7 +112,14 @@ app.post("/bookings", async (req, res) => {
 });
 
 app.get("/bookings", async (req, res) => {
-  const result = await bookingsCollection.find({}).toArray();
+  const query = {};
+  if (req.query.customerEmail) {
+    query.customerEmail = req.query.customerEmail;
+  }
+  if (req.query.technicianEmail) {
+    query.technicianEmail = req.query.technicianEmail;
+  }
+  const result = await bookingsCollection.find(query).toArray();
   res.send(result);
 });
 
@@ -121,6 +130,13 @@ app.patch("/bookings/:id", async (req, res) => {
   const result = await bookingsCollection.updateOne(filter, {
     $set: updatedBooking,
   });
+  res.send(result);
+});
+
+app.delete("/bookings/:id", async (req, res) => {
+  const id = req.params.id;
+  const filter = { _id: new ObjectId(id) };
+  const result = await bookingsCollection.deleteOne(filter);
   res.send(result);
 });
 
