@@ -102,6 +102,27 @@ app.delete("/delete-services/:id", async (req, res) => {
   res.send(result);
 });
 
+app.post("/bookings", async (req, res) => {
+  const booking = req.body;
+  const result = await bookingsCollection.insertOne(booking);
+  res.send(result);
+});
+
+app.get("/bookings", async (req, res) => {
+  const result = await bookingsCollection.find({}).toArray();
+  res.send(result);
+});
+
+app.patch("/bookings/:id", async (req, res) => {
+  const id = req.params.id;
+  const filter = { _id: new ObjectId(id) };
+  const updatedBooking = req.body;
+  const result = await bookingsCollection.updateOne(filter, {
+    $set: updatedBooking,
+  });
+  res.send(result);
+});
+
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
