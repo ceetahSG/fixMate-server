@@ -30,13 +30,14 @@ const paymentsCollection = db.collection("payments");
 const usersCollection = db.collection("user");
 
 app.get("/services", async (req, res) => {
-  try {
-    const result = await servicesCollection.find({}).toArray();
-    res.send(result);
-  } catch (err) {
-    console.error("Failed to fetch services:", err);
-    res.status(500).send({ message: "Failed to fetch services" });
+  const query = {};
+  console.log("Query parameters:", req.query);
+  if (req.query.category) {
+    query.category = req.query.category;
   }
+  const result = await servicesCollection.find(query).toArray();
+
+  res.send(result);
 });
 
 app.get("/services/:id", async (req, res) => {
