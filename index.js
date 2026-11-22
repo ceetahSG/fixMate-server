@@ -146,6 +146,17 @@ app.post("/payments", async (req, res) => {
   res.send(result);
 });
 
+app.get("/payments", async (req, res) => {
+  const query = {};
+  if (req.query.customerEmail) {
+    query.customerEmail = req.query.customerEmail;
+  }
+  if (req.query.technicianEmail) {
+    query.technicianEmail = req.query.technicianEmail;
+  }
+  const result = await paymentsCollection.find(query).toArray();
+  res.send(result);
+});
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
