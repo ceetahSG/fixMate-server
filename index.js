@@ -140,6 +140,12 @@ app.delete("/bookings/:id", async (req, res) => {
   res.send(result);
 });
 
+app.post("/payments", async (req, res) => {
+  const payment = req.body;
+  const result = await paymentsCollection.insertOne(payment);
+  res.send(result);
+});
+
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
 });
