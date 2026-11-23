@@ -29,6 +29,12 @@ const bookingsCollection = db.collection("bookings");
 const paymentsCollection = db.collection("payments");
 const usersCollection = db.collection("user");
 
+const verifyApi = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  console.log("Authorization header:", authHeader);
+  next();
+};
+
 app.get("/services", async (req, res) => {
   const query = {};
   console.log("Query parameters:", req.query);
@@ -146,7 +152,7 @@ app.post("/payments", async (req, res) => {
   res.send(result);
 });
 
-app.get("/payments", async (req, res) => {
+app.get("/payments", verifyApi, async (req, res) => {
   const query = {};
   if (req.query.customerEmail) {
     query.customerEmail = req.query.customerEmail;
