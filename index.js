@@ -2,6 +2,7 @@ import express from "express";
 import "dotenv/config";
 import cors from "cors";
 import { MongoClient, ObjectId } from "mongodb";
+import { createRemoteJWKSet, jwtVerify } from "jose";
 
 const app = express();
 
@@ -29,10 +30,26 @@ const bookingsCollection = db.collection("bookings");
 const paymentsCollection = db.collection("payments");
 const usersCollection = db.collection("user");
 
-const verifyApi = (req, res, next) => {
+const verifyApi = async (req, res, next) => {
   const authHeader = req.headers.authorization;
-  console.log("Authorization header:", authHeader);
-  next();
+  if (!authHeader) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+  const token = authHeader.split(" ")[1];
+  if (!token) {
+    return res.status(401).send({ message: "Unauthorized access" });
+  }
+  const JWKS = createRemoteJWKSet(
+    new URL(`${process.env.FRONTEND_URL}/api/auth/jwks`),
+  );
+  try {
+    const { payload } = await jwtVerify(token, JWKS);
+    console.log("Decoded JWT payload:", payload);
+    next();
+  } catch (error) {
+    console.error("JWT verification failed:", error);
+    return res.status(500).send({ message: "Server Error" });
+  }
 };
 
 app.get("/services", async (req, res) => {
