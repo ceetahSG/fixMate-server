@@ -10,7 +10,8 @@ app.use(express.json());
 
 // All environment-specific URLs come from .env — nothing is hard-coded here.
 const requiredEnv = (name) => {
-  const value = typeof process.env[name] === "string" ? process.env[name].trim() : "";
+  const value =
+    typeof process.env[name] === "string" ? process.env[name].trim() : "";
   if (!value) {
     throw new Error(`Missing required environment variable: ${name}`);
   }
@@ -300,7 +301,10 @@ app.patch(
       if (!result.matchedCount) {
         return res.status(404).send({ message: "Booking not found" });
       }
-      return res.send({ matchedCount: result.matchedCount, modifiedCount: result.modifiedCount });
+      return res.send({
+        matchedCount: result.matchedCount,
+        modifiedCount: result.modifiedCount,
+      });
     } catch (error) {
       return res.status(500).send({ message: "Failed to cancel booking" });
     }
@@ -335,7 +339,9 @@ app.post(
       !isAllowedRedirectUrl(paymentSuccessUrl) ||
       !isAllowedRedirectUrl(paymentCancelUrl)
     ) {
-      return res.status(500).send({ message: "Payment redirects are misconfigured" });
+      return res
+        .status(500)
+        .send({ message: "Payment redirects are misconfigured" });
     }
 
     try {
@@ -397,86 +403,94 @@ app.post(
 
       return res.send({ url: session.url, sessionId: session.id });
     } catch (error) {
-      return res.status(500).send({ message: "Failed to create checkout session" });
+      return res
+        .status(500)
+        .send({ message: "Failed to create checkout session" });
     }
   },
 );
 
-app.post("/api/payments/confirm", verifyToken, verifyCustomer, async (req, res) => {
-  if (!stripe) {
-    return res.status(503).send({ message: "Stripe is not configured" });
-  }
-
-  const sessionId =
-    typeof req.body.sessionId === "string" ? req.body.sessionId.trim() : "";
-  if (!sessionId) {
-    return res.status(400).send({ message: "Invalid sessionId" });
-  }
-
-  try {
-    const checkoutSession = await stripe.checkout.sessions.retrieve(sessionId);
-    const bookingId = checkoutSession.metadata?.bookingId;
-
-    if (!isValidObjectId(bookingId)) {
-      return res.status(400).send({ message: "Invalid booking reference" });
-    }
-    if (checkoutSession.payment_status !== "paid") {
-      return res.status(409).send({ message: "Payment is not complete yet" });
+app.post(
+  "/api/payments/confirm",
+  verifyToken,
+  verifyCustomer,
+  async (req, res) => {
+    if (!stripe) {
+      return res.status(503).send({ message: "Stripe is not configured" });
     }
 
-    const booking = await bookingsCollection.findOne({
-      _id: new ObjectId(bookingId),
-      customerEmail: req.user.email,
-    });
-    if (!booking) {
-      return res.status(404).send({ message: "Booking not found" });
+    const sessionId =
+      typeof req.body.sessionId === "string" ? req.body.sessionId.trim() : "";
+    if (!sessionId) {
+      return res.status(400).send({ message: "Invalid sessionId" });
     }
 
-    const amount =
-      typeof checkoutSession.amount_total === "number"
-        ? checkoutSession.amount_total / 100
-        : Number(booking.finalAmount) || 0;
-    const transactionId =
-      typeof checkoutSession.payment_intent === "string"
-        ? checkoutSession.payment_intent
-        : (checkoutSession.payment_intent?.id ?? "");
-    const paidAt = new Date();
+    try {
+      const checkoutSession =
+        await stripe.checkout.sessions.retrieve(sessionId);
+      const bookingId = checkoutSession.metadata?.bookingId;
 
-    await paymentsCollection.updateOne(
-      { bookingId },
-      {
-        $setOnInsert: {
-          bookingId,
-          serviceTitle: booking.serviceTitle,
-          customerName: booking.customerName,
-          customerEmail: booking.customerEmail,
-          technicianName: booking.technicianName,
-          technicianEmail: booking.technicianEmail,
-          amount,
-          currency: checkoutSession.currency || "usd",
-          createdAt: paidAt,
+      if (!isValidObjectId(bookingId)) {
+        return res.status(400).send({ message: "Invalid booking reference" });
+      }
+      if (checkoutSession.payment_status !== "paid") {
+        return res.status(409).send({ message: "Payment is not complete yet" });
+      }
+
+      const booking = await bookingsCollection.findOne({
+        _id: new ObjectId(bookingId),
+        customerEmail: req.user.email,
+      });
+      if (!booking) {
+        return res.status(404).send({ message: "Booking not found" });
+      }
+
+      const amount =
+        typeof checkoutSession.amount_total === "number"
+          ? checkoutSession.amount_total / 100
+          : Number(booking.finalAmount) || 0;
+      const transactionId =
+        typeof checkoutSession.payment_intent === "string"
+          ? checkoutSession.payment_intent
+          : (checkoutSession.payment_intent?.id ?? "");
+      const paidAt = new Date();
+
+      await paymentsCollection.updateOne(
+        { bookingId },
+        {
+          $setOnInsert: {
+            bookingId,
+            serviceTitle: booking.serviceTitle,
+            customerName: booking.customerName,
+            customerEmail: booking.customerEmail,
+            technicianName: booking.technicianName,
+            technicianEmail: booking.technicianEmail,
+            amount,
+            currency: checkoutSession.currency || "usd",
+            createdAt: paidAt,
+          },
+          $set: {
+            paymentStatus: "paid",
+            transactionId,
+            stripeSessionId: checkoutSession.id,
+            paidAt,
+            updatedAt: paidAt,
+          },
         },
-        $set: {
-          paymentStatus: "paid",
-          transactionId,
-          stripeSessionId: checkoutSession.id,
-          paidAt,
-          updatedAt: paidAt,
-        },
-      },
-      { upsert: true },
-    );
+        { upsert: true },
+      );
 
-    await bookingsCollection.updateOne(
-      { _id: new ObjectId(bookingId), customerEmail: req.user.email },
-      { $set: { paymentStatus: "paid", paidAt, updatedAt: paidAt } },
-    );
+      await bookingsCollection.updateOne(
+        { _id: new ObjectId(bookingId), customerEmail: req.user.email },
+        { $set: { paymentStatus: "paid", paidAt, updatedAt: paidAt } },
+      );
 
-    return res.send({ bookingId, paymentStatus: "paid" });
-  } catch (error) {
-    return res.status(500).send({ message: "Failed to confirm payment" });
-  }
-});
+      return res.send({ bookingId, paymentStatus: "paid" });
+    } catch (error) {
+      return res.status(500).send({ message: "Failed to confirm payment" });
+    }
+  },
+);
 
 app.get("/api/payments", verifyToken, async (req, res) => {
   const role = req.user?.role;
@@ -523,9 +537,11 @@ app.post("/api/services", verifyToken, verifyTechnician, async (req, res) => {
     };
 
     const result = await servicesCollection.insertOne(service);
-    return res
-      .status(201)
-      .send({ ...service, _id: result.insertedId, insertedId: result.insertedId });
+    return res.status(201).send({
+      ...service,
+      _id: result.insertedId,
+      insertedId: result.insertedId,
+    });
   } catch (error) {
     return res.status(500).send({ message: "Failed to create service" });
   }
@@ -571,7 +587,10 @@ app.patch(
       if (!result.matchedCount) {
         return res.status(404).send({ message: "Service not found" });
       }
-      return res.send({ matchedCount: result.matchedCount, modifiedCount: result.modifiedCount });
+      return res.send({
+        matchedCount: result.matchedCount,
+        modifiedCount: result.modifiedCount,
+      });
     } catch (error) {
       return res.status(500).send({ message: "Failed to update service" });
     }
@@ -643,7 +662,10 @@ app.patch(
       if (!result.matchedCount) {
         return res.status(404).send({ message: "Booking not found" });
       }
-      return res.send({ matchedCount: result.matchedCount, modifiedCount: result.modifiedCount });
+      return res.send({
+        matchedCount: result.matchedCount,
+        modifiedCount: result.modifiedCount,
+      });
     } catch (error) {
       return res.status(500).send({ message: "Failed to update booking" });
     }
@@ -673,7 +695,10 @@ app.patch("/api/users/profile", verifyToken, async (req, res) => {
     if (!result.matchedCount) {
       return res.status(404).send({ message: "User not found" });
     }
-    return res.send({ matchedCount: result.matchedCount, modifiedCount: result.modifiedCount });
+    return res.send({
+      matchedCount: result.matchedCount,
+      modifiedCount: result.modifiedCount,
+    });
   } catch (error) {
     return res.status(500).send({ message: "Failed to update profile" });
   }
@@ -699,18 +724,28 @@ app.patch(
 
     const targetId = new ObjectId(req.params.id);
     if (targetId.equals(req.user._id)) {
-      return res.status(403).send({ message: "Administrators cannot change their own role" });
+      return res
+        .status(403)
+        .send({ message: "Administrators cannot change their own role" });
     }
 
     try {
       const result = await usersCollection.updateOne(
         { _id: targetId },
-        { $set: { role: role.charAt(0).toUpperCase() + role.slice(1), updatedAt: new Date() } },
+        {
+          $set: {
+            role: role.charAt(0).toUpperCase() + role.slice(1),
+            updatedAt: new Date(),
+          },
+        },
       );
       if (!result.matchedCount) {
         return res.status(404).send({ message: "User not found" });
       }
-      return res.send({ matchedCount: result.matchedCount, modifiedCount: result.modifiedCount });
+      return res.send({
+        matchedCount: result.matchedCount,
+        modifiedCount: result.modifiedCount,
+      });
     } catch (error) {
       return res.status(500).send({ message: "Failed to update role" });
     }
@@ -744,32 +779,25 @@ app.patch(
       if (!result.matchedCount) {
         return res.status(404).send({ message: "Service not found" });
       }
-      return res.send({ matchedCount: result.matchedCount, modifiedCount: result.modifiedCount });
+      return res.send({
+        matchedCount: result.matchedCount,
+        modifiedCount: result.modifiedCount,
+      });
     } catch (error) {
       return res.status(500).send({ message: "Failed to update approval" });
     }
   },
 );
 
-app.get(
-  "/api/admin/bookings",
-  verifyToken,
-  verifyAdmin,
-  async (req, res) => {
-    const bookings = await bookingsCollection.find({}).toArray();
-    return res.send(bookings);
-  },
-);
+app.get("/api/admin/bookings", verifyToken, verifyAdmin, async (req, res) => {
+  const bookings = await bookingsCollection.find({}).toArray();
+  return res.send(bookings);
+});
 
-app.get(
-  "/api/admin/payments",
-  verifyToken,
-  verifyAdmin,
-  async (req, res) => {
-    const payments = await paymentsCollection.find({}).toArray();
-    return res.send(payments);
-  },
-);
+app.get("/api/admin/payments", verifyToken, verifyAdmin, async (req, res) => {
+  const payments = await paymentsCollection.find({}).toArray();
+  return res.send(payments);
+});
 
 app.get("/api/users/profile", verifyToken, async (req, res) => {
   const user = await usersCollection.findOne({ _id: req.user._id });
@@ -791,6 +819,10 @@ app.use((error, req, res, next) => {
   return res.status(500).send({ message: "Server error" });
 });
 
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
-});
+if (!process.env.VERCEL) {
+  app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+  });
+}
+
+export default app;
