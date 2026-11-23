@@ -53,6 +53,8 @@ const verifyApi = async (req, res, next) => {
 };
 
 app.get("/services", async (req, res) => {
+  const authHeader = req.headers.authorization;
+  console.log("Authorization header:", authHeader);
   const query = {};
   console.log("Query parameters:", req.query);
   if (req.query.category) {
@@ -169,7 +171,7 @@ app.post("/payments", async (req, res) => {
   res.send(result);
 });
 
-app.get("/payments", verifyApi, async (req, res) => {
+app.get("/payments", async (req, res) => {
   const query = {};
   if (req.query.customerEmail) {
     query.customerEmail = req.query.customerEmail;
